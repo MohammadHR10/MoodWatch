@@ -1,78 +1,114 @@
-import cv2, time, threading
-from datetime import datetime
-# pip install deepface
-from deepface import DeepFace
+import cv2, time
 
+# ====== CONFIG ======
 CAM_INDEX = 0
-SHOW_FPS = True
-ANALYZE_FPS = 8          # cap emotion model to this rate
-FRAME_SIZE = (1280, 720) # try (640,480) if your CPU is modest
+FRAME_SIZE = (640, 480)
+REQUESTED_FPS = 30
 
-state = {
-    "frame": None,
-    "frame_id": 0,
-    "last_draw": None,
-    "running": True
-}
-lock = threading.Lock()
+FIRST_OFFSET = 2        # camera ON at T+2s
+PULSE_DURATION = 6      # stay ON for 6s
+RECURRING_GAP = 100     # then every 100s
+REOPEN_COOLDOWN = 0.3   # tiny pause after closing
+MIN_LEAD = 0.2          # require next start >= now + 0.2s
+# ====================
 
-def detect_emotion(cam=0):
-    print(f"Opening camera {cam}...")
-    capture_video = cv2.VideoCapture(cam)
-    
-    if not capture_video.isOpened():
-        print("Error: Could not open camera.")
-        return
-    
-    print("Camera opened successfully!")
-    print("Waiting for camera to fully initialize...")
-    time.sleep(3)  # Give camera time to initialize
-    
-    # Try to set camera properties
-    capture_video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    capture_video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    
-    # Try multiple frame reads to get a good frame
-    for attempt in range(10):
-        ret, frame = capture_video.read()
-        if ret and frame.sum() > 0:  # Check if frame has content
-            print(f"Got working frame on attempt {attempt + 1}")
-            break
-        time.sleep(0.5)  # Wait between attempts
-    else:
-        print("Error: Could not get a working frame after 10 attempts.")
-        capture_video.release()
-        return
-    
-    if ret:
-        # Display the frame
-        cv2.imshow("First Frame", frame)
-        
-        # Bring window to front and give it focus
-        cv2.setWindowProperty("First Frame", cv2.WND_PROP_TOPMOST, 1)
-        
-        print("Camera working! Press 'q' or 'ESC' to close the window")
-        print("Make sure to click on the camera window first!")
-        
+def open_cam():
+    cap = cv2.VideoCapture(CAM_INDEX, cv2.CAP_AVFOUNDATION)  # macOS backend
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_SIZE[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_SIZE[1])
+    cap.set(cv2.CAP_PROP_FPS, REQUESTED_FPS)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # fine if ignored
+    if not cap.isOpened():
+        print("[ERR] Could not open camera"); return None
+    # warm-up a few frames so exposure/white balance stabilize
+    for _ in range(8):
+        cap.read(); time.sleep(0.02)
+    return cap
+
+def run_preview(duration_s: int) -> bool:
+    """Show live video for duration_s. Return False if user quits."""
+    cap = open_cam()
+    if cap is None:
+        return True  # skip this pulse but keep scheduler running
+    t_end = time.monotonic() + duration_s
+    try:
         while True:
-            # Refresh the display
-            cv2.imshow("First Frame", frame)
-            
-            # Check for key press
-            key = cv2.waitKey(30) & 0xFF  # Increased wait time
-            if key == ord('q') or key == 27:  # 'q' or ESC key
-                print("Closing camera...")
-                break
-            elif key != 255:  # Any other key was pressed
-                print(f"Key pressed: {key}. Press 'q' or ESC to quit.")
-        
-        # Close the window
+            if time.monotonic() >= t_end: break
+            ok, frame = cap.read()
+            if not ok:
+                time.sleep(0.01); continue
+            rem = max(0.0, t_end - time.monotonic())
+            cv2.putText(frame, f"ON: {rem:4.1f}s left", (14, 32),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,255,255), 2, cv2.LINE_AA)
+            cv2.imshow("Webcam (Scheduled)", frame)
+            k = cv2.waitKey(1) & 0xFF
+            if k in (ord('q'), 27):  # q or ESC aborts all
+                return False
+    finally:
+        cap.release()
         cv2.destroyAllWindows()
+        time.sleep(REOPEN_COOLDOWN)
+    return True
+
+def next_start_after(anchor, gap, now):
+    """
+    Given a repeating sequence starting at 'anchor' every 'gap' seconds,
+    return the first start strictly in the future with a small lead.
+    """
+    if now < anchor:
+        start = anchor
     else:
-        print("Error: Could not read the frame.")
-    
-    # Release the video capture object
-    capture_video.release()
+        n = int((now - anchor) // gap) + 1
+        start = anchor + n * gap
+    if start < now + MIN_LEAD:
+        start += gap
+    return start
+
+def main():
+    print("Schedule: T+2s for 6s, then every 100s for 6s. Ctrl+C or q/ESC to stop.")
+    t0 = time.monotonic()
+
+    # 1) First pulse at T+FIRST_OFFSET
+    first_start = t0 + FIRST_OFFSET
+    while True:
+        now = time.monotonic()
+        if now >= first_start: break
+        time.sleep(min(0.1, first_start - now))
+    print(f"[{time.strftime('%H:%M:%S')}] Camera ON (first) for {PULSE_DURATION}s")
+    keep = run_preview(PULSE_DURATION)
+    print(f"[{time.strftime('%H:%M:%S')}] Camera OFF")
+    if not keep:
+        print("[INFO] Stopped by user."); return
+
+    # 2) Recurring pulses: every RECURRING_GAP seconds, each PULSE_DURATION
+    anchor = first_start + RECURRING_GAP  # first recurring anchor after the first pulse
+    try:
+        while True:
+            now = time.monotonic()
+            abs_start = next_start_after(anchor, RECURRING_GAP, now)
+
+            # wait until abs_start (light sleep, low CPU)
+            while True:
+                now = time.monotonic()
+                abs_start = next_start_after(anchor, RECURRING_GAP, now)
+
+                # wait until abs_start (with countdown display)
+                while True:
+                    now = time.monotonic()
+                    delta = abs_start - now
+                    if delta <= 0:
+                        break
+                    print(f"\rNext camera ON in {delta:5.1f} sec", end="", flush=True)
+                    time.sleep(1)  # update every second
+
+                print("\n" + f"[{time.strftime('%H:%M:%S')}] Camera ON for {PULSE_DURATION}s")
+                keep = run_preview(PULSE_DURATION)
+                print(f"[{time.strftime('%H:%M:%S')}] Camera OFF")
+                if not keep:
+                    print("[INFO] Stopped by user."); break
+
+    except KeyboardInterrupt:
+        print("\n[INFO] Stopped by user (Ctrl+C).")
 
 if __name__ == "__main__":
-    detect_emotion()
+    main()
