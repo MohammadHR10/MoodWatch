@@ -1,0 +1,5 @@
+opencv-python>=4.8.0
+numpy>=1.24,<2.0
+python-dotenv>=1.0.1
+# optional for later analysis/viz on your machine:
+# pandas>=2.0
