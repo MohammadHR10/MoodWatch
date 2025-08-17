@@ -1,14 +1,28 @@
 # app/streamlit_app.py
 import os
+import sys
 from pathlib import Path
 import pandas as pd
 import altair as alt
 import streamlit as st
+from dotenv import load_dotenv
+
+# Add the project root to Python path for imports
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+# Import with error handling
+try:
+    from app.llm_client import gemini_reply
+    from app.au_payload import build_au_payload
+    LLM_AVAILABLE = True
+except ImportError as e:
+    LLM_AVAILABLE = False
+    LLM_ERROR = str(e) 
 
 # -------------------------------------------------------------------
 # Paths & config
 # -------------------------------------------------------------------
-ROOT = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT / "processed" / "session_summary.csv"
 
 st.set_page_config(page_title="Facial expression changes", layout="centered")
@@ -135,3 +149,54 @@ st.download_button(
     file_name="session_summary.csv",
     mime="text/csv",
 )
+# -------------------------------------------------------------------
+# LLM Interpretation (Gemini 2.5 Flash-Lite)
+# -------------------------------------------------------------------
+
+load_dotenv()  # load GEMINI_API_KEY etc. from .env
+
+st.markdown("---")
+st.subheader("AU interpretation (Gemini 2.5 Flash-Lite)")
+
+# Check if LLM components are available
+if not LLM_AVAILABLE:
+    st.error(f"❌ LLM components not available: {LLM_ERROR}")
+    st.info("Try running: `pip install google-generativeai`")
+    st.stop()
+
+# Check if Gemini API key is configured
+if not os.getenv("GEMINI_API_KEY"):
+    st.warning("⚠️ GEMINI_API_KEY not found in environment. Please add it to your .env file to use LLM interpretation.")
+    st.info("Get your API key from: https://makersuite.google.com/app/apikey")
+else:
+    st.success("✅ Gemini API configured")
+
+mode = st.radio("Analyze", ["Latest pulse", "Last N pulses"], horizontal=True)
+N = st.number_input("N (for Last N pulses)", min_value=2, max_value=200, value=40, step=1, disabled=(mode=="Latest pulse"))
+q = st.text_input("Ask your question", "What do my AUs say about me right now?")
+
+if st.button("Interpret"):
+    # Use the proper au_payload module
+    payload_mode = "latest" if mode == "Latest pulse" else "window"
+    payload = build_au_payload(CSV_PATH, mode=payload_mode, n=int(N))
+    
+    if not payload.get("_ok"):
+        st.error(f"Error building payload: {payload.get('_err', 'Unknown error')}")
+    else:
+        # Show payload info
+        if payload.get("_mode") == "single_pulse":
+            st.info(f"Analyzing latest pulse from: {payload.get('ts', 'Unknown time')}")
+        else:
+            st.info(f"Analyzing window of {payload.get('count', 0)} pulses")
+        
+        with st.spinner("Getting LLM interpretation..."):
+            reply = gemini_reply(q, payload)
+            
+            if reply.startswith("GEMINI_API_KEY not set"):
+                st.error("❌ " + reply)
+            else:
+                st.markdown("**Coach:** " + reply)
+                
+                # Show payload details in expander
+                with st.expander("View AU data sent to LLM"):
+                    st.json(payload)

@@ -2,6 +2,7 @@
 numpy==1.26.4
 opencv-python==4.11.0.86
 python-dotenv==1.1.1
+google-generativeai
 
 # Streamlit viewer
 streamlit==1.33.0

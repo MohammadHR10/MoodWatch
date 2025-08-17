@@ -1,0 +1,10 @@
+Input:/var/folders/yb/7l3gtx8n5fb22kdxg9wd88kh0000gn/T/tmpqrxjoq6n/pulse_20250817T002445.mp4
+Input full path:/var/folders/yb/7l3gtx8n5fb22kdxg9wd88kh0000gn/T/tmpqrxjoq6n/pulse_20250817T002445.mp4
+Camera parameters:500,500,320,240
+Output csv:pulse_20250817T002445.csv
+Gaze: 1
+AUs: 1
+Landmarks 2D: 1
+Landmarks 3D: 1
+Pose: 1
+Shape parameters: 0
