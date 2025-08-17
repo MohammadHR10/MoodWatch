@@ -1,0 +1,10 @@
+# Streamlit Cloud Deployment Requirements
+numpy==1.26.4
+pandas==2.0.3
+altair==5.1.2
+streamlit==1.33.0
+python-dotenv==1.1.1
+google-generativeai
+pyarrow==14.0.2
+
+# Note: OpenCV and camera-related packages removed for cloud deployment

@@ -2,22 +2,6 @@
 
 A comprehensive guide to understanding Facial Action Units (AUs) for emotion detection and analysis.
 
-## 📸 Application Screenshots
-
-### Dashboard Overview
-![MoodWatch Dashboard](images/dashboard-overview.png)
-*Main Streamlit dashboard showing emotion analysis charts and real-time data*
-
-### Camera Preview
-![Camera Preview](images/camera-preview.png) 
-*Live camera feed with emotion detection overlay*
-
-### LLM Interpretation
-![LLM Interpretation](images/llm-interpretation.png)
-*AI-powered emotion interpretation and insights*
-
----
-
 ## What are Action Units (AUs)?
 
 Action Units are the fundamental components of the Facial Action Coding System (FACS), developed by Paul Ekman and Wallace Friesen. They represent the basic movements of facial muscles that combine to create facial expressions and emotional displays.

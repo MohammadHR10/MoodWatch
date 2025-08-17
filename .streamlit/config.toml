@@ -1,0 +1,8 @@
+# Streamlit configuration for cloud deployment
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
