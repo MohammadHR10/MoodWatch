@@ -73,6 +73,48 @@ Action Units are the fundamental components of the Facial Action Coding System (
 
 ## 🚀 How to Run the MoodWatch Application
 
+### Prerequisites & Installation
+
+**Before running the application, make sure you have:**
+
+1. **Python 3.8+** installed
+2. **OpenFace** toolkit installed and configured
+3. **Webcam** access permissions
+
+### Local Installation Steps
+
+1. **Clone and navigate to the project:**
+
+   ```bash
+   git clone <repository-url>
+   cd MoodWatch
+   ```
+
+2. **Install Python dependencies:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Clear previous data (for fresh AU detection):**
+
+   ```bash
+   # Option 1: Remove all files inside processed folder (keeps the folder)
+   rm -rf processed/*
+
+   # Option 2: Remove entire processed folder (it will be recreated automatically)
+   rm -rf processed/
+   ```
+
+   **Note**: This clears any previous emotion detection data for a fresh start.
+
+4. **Set up environment variables:**
+   Create a `.env` file with your OpenFace and API configurations:
+   ```bash
+   OPENFACE_BIN=/path/to/FeatureExtraction
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+
 ### Quick Start
 
 1. **Navigate to the MoodWatch directory:**
